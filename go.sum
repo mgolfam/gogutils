@@ -1,0 +1,8 @@
+github.com/golang-cz/textcase v1.2.1 h1:0xRtKo+abtJojre5ONjuMzyg9fSfiKBj5bWZ6fpTYxI=
+github.com/golang-cz/textcase v1.2.1/go.mod h1:aWsQknYwxtTS2zSCrGGoRIsxmzjsHomRqLeMeVb+SKU=
+github.com/google/brotli/go/cbrotli v0.0.0-20240715182736-39bcecf4559f h1:gMt4P0lp6wvToXa3UD8JocJxpt0yyXdG8SLfLMxkpKM=
+github.com/google/brotli/go/cbrotli v0.0.0-20240715182736-39bcecf4559f/go.mod h1:nOPhAkwVliJdNTkj3gXpljmWhjc4wCaVqbMJcPKWP4s=
+github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
+github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
+golang.org/x/net v0.28.0 h1:a9JDOJc5GMUJ0+UDqmLT86WiEy7iWyIhz8gz8E4e5hE=
+golang.org/x/net v0.28.0/go.mod h1:yqtgsTWOOnlGLG9GFRrK3++bGOUEkNBoHZc8MEDWPNg=

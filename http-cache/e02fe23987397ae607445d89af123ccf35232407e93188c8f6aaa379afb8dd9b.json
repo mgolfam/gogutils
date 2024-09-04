@@ -1,0 +1,16 @@
+{
+  "ElapsedTime": 997,
+  "StatusCode": 200,
+  "Headers": {
+    "Access-Control-Allow-Origin": "*",
+    "Content-Length": "313",
+    "Content-Type": "application/json; charset=utf-8",
+    "Date": "Sun, 01 Sep 2024 16:19:46 GMT",
+    "X-Rl": "44",
+    "X-Ttl": "60"
+  },
+  "Body": "{\"status\":\"success\",\"country\":\"Iran\",\"countryCode\":\"IR\",\"region\":\"23\",\"regionName\":\"Tehran\",\"city\":\"Tehran\",\"zip\":\"\",\"lat\":35.6824,\"lon\":51.4158,\"timezone\":\"Asia/Tehran\",\"isp\":\"Iran Cell Service and Communication Company\",\"org\":\"\",\"as\":\"AS44244 Iran Cell Service and Communication Company\",\"query\":\"5.113.64.190\"}",
+  "FromCache": false,
+  "CreatedUnix": 1725203973,
+  "CacheTtl": 15552000
+}
