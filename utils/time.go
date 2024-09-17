@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 	"unicode"
@@ -118,4 +119,18 @@ func FilterAlphanumeric(input string) string {
 		}
 	}
 	return string(result)
+}
+
+func Time2Unix(timeString, layout string) (int64, error) {
+	// Parse the string into a time.Time object
+	parsedTime, err := time.Parse(layout, timeString)
+	if err != nil {
+		fmt.Println("Error parsing time:", err)
+		return 0, err
+	}
+
+	// Convert the time to Unix timestamp (seconds)
+	unixTime := parsedTime.Unix()
+
+	return unixTime, nil
 }
