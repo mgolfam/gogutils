@@ -95,3 +95,29 @@ func KebabCase(s string) string {
 	snake := string(result)
 	return snake
 }
+
+func CheckStringCategory(s string) string {
+	hasDigit := false
+	hasLetter := false
+
+	for _, char := range s {
+		if unicode.IsDigit(char) {
+			hasDigit = true
+		} else if unicode.IsLetter(char) {
+			hasLetter = true
+		} else {
+			// If there are any non-digit and non-letter characters, return "invalid"
+			return "invalid"
+		}
+	}
+
+	if hasDigit && !hasLetter {
+		return "all_digits"
+	} else if hasLetter && !hasDigit {
+		return "all_alphabets"
+	} else if hasDigit && hasLetter {
+		return "mixed"
+	}
+
+	return "invalid" // Shouldn't reach here, just a safety measure
+}
