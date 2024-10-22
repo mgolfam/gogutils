@@ -26,7 +26,7 @@ type HttpConfig struct {
 	Method        string
 	URL           string
 	Headers       map[string]string
-	Body          string
+	Body          []byte
 	Timeout       time.Duration
 	LogResponse   bool
 	Cache         bool
@@ -53,7 +53,7 @@ type HttpResponse struct {
 	ElapsedTime int64
 	StatusCode  int
 	Headers     map[string]string
-	Body        string
+	Body        []byte
 	FromCache   bool
 	CreatedUnix int64
 	CacheTtl    int64
@@ -205,8 +205,8 @@ func SendRequest(config HttpConfig) (*HttpResponse, error) {
 
 	// Create a request body reader from the string
 	var requestBodyReader io.Reader = nil
-	if config.Body != "" {
-		requestBodyReader = strings.NewReader(config.Body)
+	if config.Body != nil {
+		requestBodyReader = bytes.NewReader(config.Body)
 	}
 
 	// Create an HTTP request based on the configuration
@@ -321,7 +321,7 @@ func makeResponse(method string, url string,
 	return &hresp, nil
 }
 
-func getBody(headers map[string]string, body []byte) string {
+func getBodyString(headers map[string]string, body []byte) string {
 	// compression check
 	contentEncoding := headers["Content-Encoding"]
 	if contentEncoding == "" {
@@ -341,6 +341,28 @@ func getBody(headers map[string]string, body []byte) string {
 	}
 
 	return ""
+}
+
+func getBody(headers map[string]string, body []byte) []byte {
+	// compression check
+	contentEncoding := headers["Content-Encoding"]
+	if contentEncoding == "" {
+		return body
+	} else if contentEncoding == "gzip" {
+		dec, err := compression.Gunzip(body)
+		if err != nil {
+			return nil
+		}
+		return dec
+	} else if contentEncoding == "deflate" {
+		dec, err := compression.Inflate(body)
+		if err != nil {
+			return nil
+		}
+		return dec
+	}
+
+	return nil
 }
 
 func mkHeader(headers map[string][]string) map[string]string {

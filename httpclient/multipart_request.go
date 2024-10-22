@@ -76,11 +76,11 @@ func MultipartData(config HttpConfig, textFields map[string]string, fileFields m
 		glog.LogL(glog.DEBUG, "Error reading response body:", err)
 		return nil, err
 	}
-	responseBody := buffer.String()
+	// responseBody := buffer.String()
 	hresp = HttpResponse{
 		StatusCode:  response.StatusCode,
 		Headers:     headers,
-		Body:        responseBody,
+		Body:        []byte{},
 		ElapsedTime: int64(elapsedTime.Milliseconds()),
 	}
 
@@ -96,7 +96,7 @@ func MultipartData(config HttpConfig, textFields map[string]string, fileFields m
 	hresp = HttpResponse{
 		StatusCode:  response.StatusCode,
 		Headers:     headers,
-		Body:        responseBody,
+		Body:        []byte{},
 		ElapsedTime: int64(elapsedTime.Milliseconds()),
 	}
 
