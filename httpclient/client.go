@@ -50,6 +50,8 @@ type FormDataConfig struct {
 }
 
 type HttpResponse struct {
+	Address     string
+	Method      string
 	ElapsedTime int64
 	StatusCode  int
 	Headers     map[string]string
@@ -255,6 +257,8 @@ func SendRequest(config HttpConfig) (*HttpResponse, error) {
 	responseBody := getBody(headers, body)
 
 	hresp = HttpResponse{
+		Address:     config.URL,
+		Method:      config.Method,
 		StatusCode:  response.StatusCode,
 		Headers:     headers,
 		Body:        responseBody,
@@ -262,9 +266,10 @@ func SendRequest(config HttpConfig) (*HttpResponse, error) {
 	}
 
 	if config.Cache {
+		requestHash := makeHash(config)
 		hresp.CacheTtl = config.CacheTtl
 		hresp.CreatedUnix = utils.NowUnixSeconds()
-		hresp.SerializeCache(makeHash(config))
+		hresp.SerializeCache(requestHash)
 	}
 
 	if config.LogResponse {
