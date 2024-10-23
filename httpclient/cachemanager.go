@@ -25,7 +25,8 @@ func headersToString(headers map[string]string) string {
 
 func makeHash(config HttpConfig) string {
 	// Concatenate URL, headers, and request body
-	fullRequestString := config.URL + headersToString(config.Headers) + string(config.Body)
+	hashBody := sha256.Sum256([]byte(string(config.Body)))
+	fullRequestString := config.URL + headersToString(config.Headers) + fmt.Sprintf("%x", hashBody)
 
 	// Calculate SHA-256 hash
 	hash := sha256.Sum256([]byte(fullRequestString))
