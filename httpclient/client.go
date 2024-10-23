@@ -183,8 +183,9 @@ func SendMultipartFormData(config FormDataConfig) (*HttpResponse, error) {
 
 func SendRequest(config HttpConfig) (*HttpResponse, error) {
 	var hresp HttpResponse
+	requestHash := makeHash(config)
 	if config.RetrieveCache {
-		err := hresp.DeserializeCache(makeHash(config))
+		err := hresp.DeserializeCache(requestHash)
 		if err == nil {
 			glog.LogL(glog.ERROR, "http ~cache~", config.Method, config.URL)
 			return &hresp, err
@@ -266,7 +267,6 @@ func SendRequest(config HttpConfig) (*HttpResponse, error) {
 	}
 
 	if config.Cache {
-		requestHash := makeHash(config)
 		hresp.CacheTtl = config.CacheTtl
 		hresp.CreatedUnix = utils.NowUnixSeconds()
 		hresp.SerializeCache(requestHash)

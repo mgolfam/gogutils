@@ -5,18 +5,28 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/mgolfam/gogutils/filemanager"
 )
 
+// Function to convert headers map to a sorted string
 func headersToString(headers map[string]string) string {
 	var result strings.Builder
+	// Extract keys from the map
+	keys := make([]string, 0, len(headers))
+	for key := range headers {
+		keys = append(keys, key)
+	}
+	// Sort the keys
+	sort.Strings(keys)
 
-	for key, value := range headers {
+	// Iterate over the sorted keys
+	for _, key := range keys {
 		result.WriteString(key)
 		result.WriteString(": ")
-		result.WriteString(value)
+		result.WriteString(headers[key])
 		result.WriteString("\n")
 	}
 
