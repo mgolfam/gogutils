@@ -22,6 +22,7 @@ func ParseCurlCommand(curlCommand string) (*HttpConfig, error) {
 	headers := make(map[string]string)
 	var body []byte
 	contentTypeSet := false
+	proxy := ""
 
 	// Split the command into tokens
 	tokens := splitCurlCommand(curlCommand)
@@ -68,6 +69,12 @@ func ParseCurlCommand(curlCommand string) (*HttpConfig, error) {
 					contentTypeSet = true
 				}
 			}
+		case "--proxy":
+			// Extract proxy
+			if i+1 < len(tokens) {
+				proxy = strings.Trim(tokens[i+1], `'"`)
+				i++
+			}
 		default:
 			// Assume it's the URL if it starts with http
 			if strings.HasPrefix(token, "http") {
@@ -81,6 +88,11 @@ func ParseCurlCommand(curlCommand string) (*HttpConfig, error) {
 		return nil, errors.New("URL not found in curl command")
 	}
 
+	// Set proxy configuration if specified
+	if proxy != "" {
+		headers["Proxy"] = proxy
+	}
+
 	// Create the HttpConfig
 	config := &HttpConfig{
 		Method:   method,
@@ -88,7 +100,7 @@ func ParseCurlCommand(curlCommand string) (*HttpConfig, error) {
 		Headers:  headers,
 		Body:     body,
 		Timeout:  30 * time.Second,
-		UseProxy: headers["Proxy"] != "",
+		UseProxy: proxy != "",
 	}
 
 	return config, nil
