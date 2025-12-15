@@ -1,9 +1,12 @@
 package filemanager
 
 import (
+	"encoding/json"
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/mgolfam/gogutils/glog"
 )
@@ -153,4 +156,88 @@ func WriteBinaryToFile(data []byte, outFilePath string) error {
 
 	_, err = writer.Write(data)
 	return err
+}
+
+// JSON file helpers
+
+// ReadJSONFile reads a JSON file into v.
+func ReadJSONFile(path string, v interface{}) error {
+	data, err := ReadFileBytes(path)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, v)
+}
+
+// WriteJSONFile writes v as indented JSON to path.
+func WriteJSONFile(path string, v interface{}) error {
+	data, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return err
+	}
+	return WriteFileBytes(path, data, 0644)
+}
+
+// Directory and path utilities
+
+// EnsureDir ensures that the directory at path exists.
+func EnsureDir(path string) error {
+	_, err := MkDir(path)
+	return err
+}
+
+// EnsureFileWithDefault ensures that a file exists; if not, writes defaultContent.
+func EnsureFileWithDefault(path string, defaultContent []byte) error {
+	if FileDirExist(path) {
+		return nil
+	}
+	dir := filepath.Dir(path)
+	if err := EnsureDir(dir); err != nil {
+		return err
+	}
+	return WriteFileBytes(path, defaultContent, 0644)
+}
+
+// TempFile creates a temp file in dir (or os.TempDir if empty) with the given pattern.
+func TempFile(dir, pattern string) (*os.File, error) {
+	if dir == "" {
+		return os.CreateTemp("", pattern)
+	}
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, err
+	}
+	return os.CreateTemp(dir, pattern)
+}
+
+// Simple file locking using a lock file.
+
+// Lock represents a file-based lock.
+type Lock struct {
+	Path string
+}
+
+// AcquireLock tries to create a lock file; if it already exists, it waits up to timeout.
+// Lock files are simple zero-byte files at lockPath.
+func AcquireLock(lockPath string, timeout time.Duration) (*Lock, error) {
+	start := time.Now()
+	for {
+		f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL, 0644)
+		if err == nil {
+			f.Close()
+			return &Lock{Path: lockPath}, nil
+		}
+
+		if timeout > 0 && time.Since(start) > timeout {
+			return nil, err
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// Release removes the underlying lock file.
+func (l *Lock) Release() error {
+	if l == nil || l.Path == "" {
+		return nil
+	}
+	return os.Remove(l.Path)
 }

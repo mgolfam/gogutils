@@ -57,3 +57,22 @@ func LogL(level string, v ...interface{}) {
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	_log.Println(timestamp, concatenateWithSpace(v...))
 }
+
+// LogFields logs a structured message with key=value pairs built from fields.
+// Example:
+//   glog.LogFields(glog.INFO, "http request",
+//     map[string]interface{}{"method": "GET", "url": "/api", "status": 200})
+func LogFields(level string, msg string, fields map[string]interface{}) {
+	if LogLevelMap[level] < LogLevel.Code {
+		return
+	}
+
+	parts := make([]string, 0, len(fields)+1)
+	parts = append(parts, msg)
+	for k, v := range fields {
+		parts = append(parts, fmt.Sprintf("%s=%v", k, v))
+	}
+
+	timestamp := time.Now().Format("2006-01-02 15:04:05")
+	_log.Println(timestamp, strings.Join(parts, " "))
+}

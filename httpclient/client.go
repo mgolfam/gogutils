@@ -2,10 +2,12 @@ package httpclient
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -28,8 +30,6 @@ type HttpConfig struct {
 	Headers       map[string]string
 	Body          []byte
 	Timeout       time.Duration
-	Retries       int
-	RetryDelay    time.Duration
 	LogResponse   bool
 	Cache         bool
 	RetrieveCache bool
@@ -188,6 +188,183 @@ func SendMultipartFormData(config FormDataConfig) (*HttpResponse, error) {
 	return makeResponse(config.Method, config.URL, response, elapsedTime)
 }
 
+// RetryConfig defines retry behavior for higher-level helpers.
+// It does NOT change the behavior or signature of SendRequest.
+type RetryConfig struct {
+	Retries    int
+	RetryDelay time.Duration
+}
+
+// SendRequestWithRetry wraps SendRequest with simple retry logic based on RetryConfig.
+// Existing callers can keep using SendRequest; this is fully opt-in.
+func SendRequestWithRetry(config HttpConfig, retry RetryConfig) (*HttpResponse, error) {
+	// Normalize retries
+	maxRetries := retry.Retries
+	if maxRetries < 0 {
+		maxRetries = 0
+	}
+
+	var lastResp *HttpResponse
+	var lastErr error
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		resp, err := SendRequest(config)
+		lastResp, lastErr = resp, err
+
+		// Break on success or non-retryable error/status.
+		if err == nil && resp != nil && (resp.StatusCode < 500 || resp.StatusCode >= 600) {
+			break
+		}
+
+		if attempt == maxRetries {
+			break
+		}
+
+		if retry.RetryDelay > 0 {
+			time.Sleep(retry.RetryDelay)
+		}
+	}
+
+	return lastResp, lastErr
+}
+
+// SendJSON is a convenience helper that sends a JSON body and sets typical headers.
+// It keeps the underlying HttpConfig and SendRequest behavior unchanged.
+func SendJSON(method, url string, body interface{}, timeout time.Duration, headers map[string]string) (*HttpResponse, error) {
+	jsonBytes, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+
+	if headers == nil {
+		headers = make(map[string]string)
+	}
+	if _, ok := headers["Content-Type"]; !ok {
+		headers["Content-Type"] = "application/json"
+	}
+
+	cfg := HttpConfig{
+		Method:  method,
+		URL:     url,
+		Headers: headers,
+		Body:    jsonBytes,
+		Timeout: timeout,
+	}
+
+	return SendRequest(cfg)
+}
+
+// DecodeJSONBody decodes the response body (assumed JSON) into v.
+func DecodeJSONBody(resp *HttpResponse, v interface{}) error {
+	if resp == nil {
+		return errors.New("nil HttpResponse")
+	}
+	if len(resp.Body) == 0 {
+		return errors.New("empty response body")
+	}
+	return json.Unmarshal(resp.Body, v)
+}
+
+// GetJSON sends a GET request and decodes a JSON response into v.
+func GetJSON(url string, timeout time.Duration, headers map[string]string, v interface{}) (*HttpResponse, error) {
+	cfg := HttpConfig{
+		Method:  http.MethodGet,
+		URL:     url,
+		Headers: headers,
+		Timeout: timeout,
+	}
+	resp, err := SendRequest(cfg)
+	if err != nil {
+		return resp, err
+	}
+	if v != nil {
+		if derr := DecodeJSONBody(resp, v); derr != nil {
+			return resp, derr
+		}
+	}
+	return resp, nil
+}
+
+// PostJSON sends a POST request with a JSON body and decodes a JSON response into v.
+func PostJSON(url string, body interface{}, timeout time.Duration, headers map[string]string, v interface{}) (*HttpResponse, error) {
+	resp, err := SendJSON(http.MethodPost, url, body, timeout, headers)
+	if err != nil {
+		return resp, err
+	}
+	if v != nil {
+		if derr := DecodeJSONBody(resp, v); derr != nil {
+			return resp, derr
+		}
+	}
+	return resp, nil
+}
+
+// Retry presets for convenience.
+var (
+	RetryFast    = RetryConfig{Retries: 1, RetryDelay: 100 * time.Millisecond}
+	RetryDefault = RetryConfig{Retries: 3, RetryDelay: 500 * time.Millisecond}
+	RetrySlow    = RetryConfig{Retries: 5, RetryDelay: 2 * time.Second}
+)
+
+// SendJSONWithRetryAndDecode combines JSON send, retry, and decode into v.
+func SendJSONWithRetryAndDecode(method, url string, body interface{}, timeout time.Duration, headers map[string]string, retry RetryConfig, v interface{}) (*HttpResponse, error) {
+	resp, err := SendJSON(method, url, body, timeout, headers)
+	if err != nil || v == nil {
+		return resp, err
+	}
+
+	// Wrap with retry using the existing higher-level helper.
+	resp, err = SendRequestWithRetry(HttpConfig{
+		Method:  method,
+		URL:     url,
+		Headers: headers,
+		Body:    resp.Body,
+		Timeout: timeout,
+	}, retry)
+	if err != nil {
+		return resp, err
+	}
+
+	if derr := DecodeJSONBody(resp, v); derr != nil {
+		return resp, derr
+	}
+	return resp, nil
+}
+
+// URL utilities
+
+// MergeHeaders returns a new map with headers from base overridden by overrides.
+func MergeHeaders(base, overrides map[string]string) map[string]string {
+	out := make(map[string]string, len(base)+len(overrides))
+	for k, v := range base {
+		out[k] = v
+	}
+	for k, v := range overrides {
+		out[k] = v
+	}
+	return out
+}
+
+// AddQueryParams adds the provided query parameters to a URL string.
+// If the URL already has query parameters, they are preserved and merged.
+func AddQueryParams(rawURL string, params map[string]string) (string, error) {
+	if len(params) == 0 {
+		return rawURL, nil
+	}
+
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return "", err
+	}
+
+	q := parsed.Query()
+	for k, v := range params {
+		q.Set(k, v)
+	}
+	parsed.RawQuery = q.Encode()
+	return parsed.String(), nil
+}
+
 func SendRequest(config HttpConfig) (*HttpResponse, error) {
 	var hresp HttpResponse
 	requestHash := makeHash(config)
@@ -213,63 +390,31 @@ func SendRequest(config HttpConfig) (*HttpResponse, error) {
 		client.Transport = transport
 	}
 
-	maxRetries := config.Retries
-	if maxRetries < 0 {
-		maxRetries = 0
+	// Create a request body reader from the string
+	var requestBodyReader io.Reader = nil
+	if config.Body != nil {
+		requestBodyReader = bytes.NewReader(config.Body)
 	}
 
-	var response *http.Response
-	var err error
+	// Create an HTTP request based on the configuration
+	request, err := http.NewRequest(config.Method, config.URL, requestBodyReader)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add custom headers to the request
+	for key, value := range config.Headers {
+		request.Header.Set(key, value)
+	}
+
+	// Send the HTTP request
+	if config.UseProxy {
+		glog.LogL(glog.INFO, "proxied", "http ->", config.Method, config.URL)
+	} else {
+		glog.LogL(glog.INFO, "http ->", config.Method, config.URL)
+	}
 	startTime := time.Now()
-
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		// Create a request body reader from the bytes for each attempt
-		var requestBodyReader io.Reader
-		if config.Body != nil {
-			requestBodyReader = bytes.NewReader(config.Body)
-		}
-
-		// Create an HTTP request based on the configuration
-		request, reqErr := http.NewRequest(config.Method, config.URL, requestBodyReader)
-		if reqErr != nil {
-			return nil, reqErr
-		}
-
-		// Add custom headers to the request
-		for key, value := range config.Headers {
-			request.Header.Set(key, value)
-		}
-
-		// Send the HTTP request
-		if config.UseProxy {
-			glog.LogL(glog.INFO, "proxied", "http ->", config.Method, config.URL, "attempt", attempt+1)
-		} else {
-			glog.LogL(glog.INFO, "http ->", config.Method, config.URL, "attempt", attempt+1)
-		}
-
-		response, err = client.Do(request)
-
-		// Break on success or non-retryable status
-		if err == nil && response != nil && !shouldRetryStatus(response.StatusCode) {
-			break
-		}
-
-		// If this was the last attempt, stop here
-		if attempt == maxRetries {
-			break
-		}
-
-		// Close body before retrying to avoid leaks
-		if response != nil && response.Body != nil {
-			response.Body.Close()
-		}
-
-		// Backoff between retries if configured
-		if config.RetryDelay > 0 {
-			time.Sleep(config.RetryDelay)
-		}
-	}
-
+	response, err := client.Do(request)
 	elapsedTime := time.Since(startTime)
 
 	if err != nil || response == nil {
@@ -317,10 +462,6 @@ func SendRequest(config HttpConfig) (*HttpResponse, error) {
 		glog.LogL(glog.INFO, "http <-", hresp.ElapsedTime, hresp.StatusCode, config.Method, config.URL)
 	}
 
-	if err != nil {
-		return nil, err
-	}
-
 	return &hresp, nil
 }
 
@@ -331,7 +472,7 @@ func makeResponse(method string, url string,
 	}
 	// Parse the response headers into a map
 	headers := make(map[string]string)
-	if response.Header != nil && len(response.Header) > 0 {
+	if len(response.Header) > 0 {
 		for key, values := range response.Header {
 			// Combine multiple header values with a comma (or your preferred delimiter)
 			headers[key] = values[0]
@@ -357,17 +498,7 @@ func makeResponse(method string, url string,
 		ElapsedTime: int64(elapsedTime.Milliseconds()),
 	}
 	glog.LogL(glog.INFO, "http <-", hresp.ElapsedTime, hresp.StatusCode, method, url, hresp.Body)
-
-	if err != nil {
-		return nil, err
-	}
-
 	return &hresp, nil
-}
-
-func shouldRetryStatus(statusCode int) bool {
-	// Retry on typical transient server errors.
-	return statusCode >= 500 && statusCode < 600
 }
 
 func getBodyString(headers map[string]string, body []byte) string {
@@ -416,7 +547,7 @@ func getBody(headers map[string]string, body []byte) []byte {
 
 func mkHeader(headers map[string][]string) map[string]string {
 	header := make(map[string]string)
-	if headers != nil && len(headers) > 0 {
+	if len(headers) > 0 {
 		for key, values := range headers {
 			// Combine multiple header values with a comma (or your preferred delimiter)
 			header[key] = strings.Join(values, "")

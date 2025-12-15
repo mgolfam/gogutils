@@ -133,3 +133,86 @@ func Time2Unix(timeString, layout string) (int64, error) {
 
 	return unixTime, nil
 }
+
+// Duration helpers
+
+// ParseDurationSafe wraps time.ParseDuration, returning 0 on error.
+func ParseDurationSafe(s string) time.Duration {
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0
+	}
+	return d
+}
+
+// FormatDurationShort formats a duration like "1h2m3s".
+func FormatDurationShort(d time.Duration) string {
+	if d < 0 {
+		d = -d
+	}
+	seconds := int64(d.Seconds())
+	h := seconds / 3600
+	m := (seconds % 3600) / 60
+	s := seconds % 60
+	if h > 0 {
+		return fmt.Sprintf("%dh%dm%ds", h, m, s)
+	}
+	if m > 0 {
+		return fmt.Sprintf("%dm%ds", m, s)
+	}
+	return fmt.Sprintf("%ds", s)
+}
+
+// Time window helpers
+
+// StartOfDay returns the start of the day for t in its location.
+func StartOfDay(t time.Time) time.Time {
+	year, month, day := t.Date()
+	return time.Date(year, month, day, 0, 0, 0, 0, t.Location())
+}
+
+// EndOfDay returns the end of the day for t in its location.
+func EndOfDay(t time.Time) time.Time {
+	return StartOfDay(t).Add(24*time.Hour - time.Nanosecond)
+}
+
+// StartOfWeek returns the start of the week (Monday) for t.
+func StartOfWeek(t time.Time) time.Time {
+	weekday := int(t.Weekday())
+	if weekday == 0 {
+		weekday = 7
+	}
+	return StartOfDay(t).AddDate(0, 0, -weekday+1)
+}
+
+// EndOfWeek returns the end of the week (Sunday) for t.
+func EndOfWeek(t time.Time) time.Time {
+	return StartOfWeek(t).AddDate(0, 0, 7).Add(-time.Nanosecond)
+}
+
+// StartOfMonth returns the start of the month for t.
+func StartOfMonth(t time.Time) time.Time {
+	year, month, _ := t.Date()
+	return time.Date(year, month, 1, 0, 0, 0, 0, t.Location())
+}
+
+// EndOfMonth returns the end of the month for t.
+func EndOfMonth(t time.Time) time.Time {
+	return StartOfMonth(t).AddDate(0, 1, 0).Add(-time.Nanosecond)
+}
+
+// ExponentialBackoff returns a backoff duration for a given attempt (0-based).
+// Example: base=100ms, factor=2, max=5s.
+func ExponentialBackoff(base time.Duration, factor float64, max time.Duration, attempt int) time.Duration {
+	if attempt <= 0 {
+		return base
+	}
+	backoff := float64(base)
+	for i := 0; i < attempt; i++ {
+		backoff *= factor
+		if time.Duration(backoff) >= max {
+			return max
+		}
+	}
+	return time.Duration(backoff)
+}

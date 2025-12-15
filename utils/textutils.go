@@ -1,7 +1,11 @@
 package utils
 
 import (
+	"crypto/rand"
+	"fmt"
+	"regexp"
 	"strconv"
+	"strings"
 	"unicode"
 	"unicode/utf8"
 
@@ -120,4 +124,89 @@ func CheckStringCategory(s string) string {
 	}
 
 	return "invalid" // Shouldn't reach here, just a safety measure
+}
+
+// StringPtr returns a pointer to the given string.
+// Useful for building structs with optional string fields.
+func StringPtr(s string) *string {
+	return &s
+}
+
+// IntPtr returns a pointer to the given int.
+func IntPtr(i int) *int {
+	return &i
+}
+
+// BoolPtr returns a pointer to the given bool.
+func BoolPtr(b bool) *bool {
+	return &b
+}
+
+// Slugify converts a string to a URL-friendly slug: lowercase, spaces to '-',
+// and removes non-alphanumeric characters (except '-').
+func Slugify(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	// Replace whitespace with dash
+	reSpace := regexp.MustCompile(`\s+`)
+	s = reSpace.ReplaceAllString(s, "-")
+	// Remove invalid chars
+	reInvalid := regexp.MustCompile(`[^a-z0-9\-]`)
+	s = reInvalid.ReplaceAllString(s, "")
+	// Collapse multiple dashes
+	reDash := regexp.MustCompile(`-+`)
+	s = reDash.ReplaceAllString(s, "-")
+	return s
+}
+
+// NormalizeSpaces trims leading/trailing spaces and collapses internal
+// whitespace runs to a single space.
+func NormalizeSpaces(s string) string {
+	s = strings.TrimSpace(s)
+	re := regexp.MustCompile(`\s+`)
+	return re.ReplaceAllString(s, " ")
+}
+
+// NormalizeNewlines converts DOS/old Mac newlines to '\n'.
+func NormalizeNewlines(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	return s
+}
+
+// StripHTML removes HTML tags using a simple regex.
+// This is not a full HTML sanitizer, but fine for logs and basic cleanup.
+func StripHTML(s string) string {
+	re := regexp.MustCompile(`<[^>]*>`)
+	return re.ReplaceAllString(s, "")
+}
+
+// SecureRandomString generates a cryptographically secure random string of the given length,
+// using the provided alphabet. If alphabet is empty, a default URL-safe set is used.
+func SecureRandomString(length int, alphabet string) (string, error) {
+	if length <= 0 {
+		return "", nil
+	}
+	if alphabet == "" {
+		alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
+	}
+	bytes := make([]byte, length)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+
+	var sb strings.Builder
+	l := len(alphabet)
+	for _, b := range bytes {
+		sb.WriteByte(alphabet[int(b)%l])
+	}
+	return sb.String(), nil
+}
+
+// MustSecureRandomString is like SecureRandomString but panics on error.
+func MustSecureRandomString(length int, alphabet string) string {
+	s, err := SecureRandomString(length, alphabet)
+	if err != nil {
+		panic(fmt.Sprintf("SecureRandomString failed: %v", err))
+	}
+	return s
 }
