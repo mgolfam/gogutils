@@ -28,6 +28,8 @@ type HttpConfig struct {
 	Headers       map[string]string
 	Body          []byte
 	Timeout       time.Duration
+	Retries       int
+	RetryDelay    time.Duration
 	LogResponse   bool
 	Cache         bool
 	RetrieveCache bool
@@ -112,9 +114,14 @@ func getTransport() (*http.Transport, error) {
 		return nil, err
 	}
 
+	// If no proxy is configured, fall back to the default transport.
+	if dialer == nil {
+		return http.DefaultTransport.(*http.Transport), nil
+	}
+
 	// Create a transport that uses the SOCKS5 proxy
 	transport := &http.Transport{Dial: dialer.Dial}
-	return transport, err
+	return transport, nil
 }
 
 func SendMultipartFormData(config FormDataConfig) (*HttpResponse, error) {
@@ -206,31 +213,63 @@ func SendRequest(config HttpConfig) (*HttpResponse, error) {
 		client.Transport = transport
 	}
 
-	// Create a request body reader from the string
-	var requestBodyReader io.Reader = nil
-	if config.Body != nil {
-		requestBodyReader = bytes.NewReader(config.Body)
+	maxRetries := config.Retries
+	if maxRetries < 0 {
+		maxRetries = 0
 	}
 
-	// Create an HTTP request based on the configuration
-	request, err := http.NewRequest(config.Method, config.URL, requestBodyReader)
-	if err != nil {
-		return nil, err
-	}
-
-	// Add custom headers to the request
-	for key, value := range config.Headers {
-		request.Header.Set(key, value)
-	}
-
-	// Send the HTTP request
-	if config.UseProxy {
-		glog.LogL(glog.INFO, "proxied", "http ->", config.Method, config.URL)
-	} else {
-		glog.LogL(glog.INFO, "http ->", config.Method, config.URL)
-	}
+	var response *http.Response
+	var err error
 	startTime := time.Now()
-	response, err := client.Do(request)
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		// Create a request body reader from the bytes for each attempt
+		var requestBodyReader io.Reader
+		if config.Body != nil {
+			requestBodyReader = bytes.NewReader(config.Body)
+		}
+
+		// Create an HTTP request based on the configuration
+		request, reqErr := http.NewRequest(config.Method, config.URL, requestBodyReader)
+		if reqErr != nil {
+			return nil, reqErr
+		}
+
+		// Add custom headers to the request
+		for key, value := range config.Headers {
+			request.Header.Set(key, value)
+		}
+
+		// Send the HTTP request
+		if config.UseProxy {
+			glog.LogL(glog.INFO, "proxied", "http ->", config.Method, config.URL, "attempt", attempt+1)
+		} else {
+			glog.LogL(glog.INFO, "http ->", config.Method, config.URL, "attempt", attempt+1)
+		}
+
+		response, err = client.Do(request)
+
+		// Break on success or non-retryable status
+		if err == nil && response != nil && !shouldRetryStatus(response.StatusCode) {
+			break
+		}
+
+		// If this was the last attempt, stop here
+		if attempt == maxRetries {
+			break
+		}
+
+		// Close body before retrying to avoid leaks
+		if response != nil && response.Body != nil {
+			response.Body.Close()
+		}
+
+		// Backoff between retries if configured
+		if config.RetryDelay > 0 {
+			time.Sleep(config.RetryDelay)
+		}
+	}
+
 	elapsedTime := time.Since(startTime)
 
 	if err != nil || response == nil {
@@ -324,6 +363,11 @@ func makeResponse(method string, url string,
 	}
 
 	return &hresp, nil
+}
+
+func shouldRetryStatus(statusCode int) bool {
+	// Retry on typical transient server errors.
+	return statusCode >= 500 && statusCode < 600
 }
 
 func getBodyString(headers map[string]string, body []byte) string {

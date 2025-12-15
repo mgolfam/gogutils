@@ -11,7 +11,7 @@ import (
 
 const (
 	TIME_FORMAT_TS   = "2006-01-02 15:04:05"
-	TIME_FORMAT_DATE = "2006-01-02 15:04:05"
+	TIME_FORMAT_DATE = "2006-01-02"
 	TIME_FORMAT_TIME = "15:04:05"
 )
 
@@ -27,8 +27,7 @@ func Today() string {
 }
 
 func TodayTime() time.Time {
-	currentTime := time.Now()
-	return currentTime
+	return time.Now()
 }
 
 func TodayZeroClockTime() time.Time {
