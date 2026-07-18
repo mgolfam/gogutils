@@ -13,10 +13,15 @@ func Deflate(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer writer.Close()
 
-	_, err = writer.Write(data)
-	if err != nil {
+	if _, err = writer.Write(data); err != nil {
+		writer.Close()
+		return nil, err
+	}
+
+	// Close flushes any buffered compressed data into buf; it must run
+	// before buf.Bytes() is read, so it cannot be deferred.
+	if err := writer.Close(); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil

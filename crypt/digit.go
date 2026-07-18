@@ -11,8 +11,8 @@ func EncodeBase36(number int64) string {
 }
 
 func DecondeBase36(text string) int64 {
-	decimalValue, success := strconv.ParseInt(text, 36, 0)
-	if success == nil {
+	decimalValue, err := strconv.ParseInt(text, 36, 0)
+	if err != nil {
 		glog.LogL(glog.DEBUG, "Conversion failed.")
 		return -1
 	}
