@@ -263,6 +263,15 @@ go test -race ./...      # with the race detector
 go test -cover ./...     # with coverage
 ```
 
+Or via the `Makefile` (run `make help` to list all targets):
+
+```bash
+make test     # run all unit tests
+make race     # tests with the race detector
+make cover    # tests with a coverage summary
+make check    # fmt + vet + test
+```
+
 The deterministic packages (`crypt`, `dto`, `utils`, `utils/compression`, `filemanager`, `httpclient`'s cURL parser) ship with unit tests. Network- and I/O-dependent helpers (`utils/network`, `services`, live HTTP requests) are intentionally left to integration testing.
 
 ## Contributing

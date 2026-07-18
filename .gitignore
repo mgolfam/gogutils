@@ -23,3 +23,6 @@ go.work.sum
 bin
 bin/
 http-cache
+
+# Go coverage output
+coverage.out
