@@ -19,7 +19,7 @@ import (
 	"golang.org/x/net/proxy"
 )
 
-const UserAgent = "gogutils_client/v0.2.1"
+const UserAgent = "gogutils_client/v1.0.10"
 
 // HTTPClientConfig contains the configuration for the HTTP client.
 type HttpConfig struct {
