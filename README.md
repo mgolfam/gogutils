@@ -253,6 +253,18 @@ gogutils/
     └── compression/  gzip & deflate
 ```
 
+## Testing
+
+Run the full suite:
+
+```bash
+go test ./...            # all packages
+go test -race ./...      # with the race detector
+go test -cover ./...     # with coverage
+```
+
+The deterministic packages (`crypt`, `dto`, `utils`, `utils/compression`, `filemanager`, `httpclient`'s cURL parser) ship with unit tests. Network- and I/O-dependent helpers (`utils/network`, `services`, live HTTP requests) are intentionally left to integration testing.
+
 ## Contributing
 
 Contributions are welcome. Please keep packages focused and dependency-light, run `go vet ./...` and `go test ./...`, and format with `gofmt` before opening a pull request.
